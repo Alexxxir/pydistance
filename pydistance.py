@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import os
 import requests
 import argparse
 from datetime import datetime, timedelta, timezone
@@ -62,49 +63,50 @@ if __name__ == '__main__':
     parser = create_parser()
     start_time = datetime(1970, 1, 1)
     parser.departure_time -= datetime.now(timezone.utc).astimezone().utcoffset()
-    keys = ["AIzaSyBoaXnNExu9yo7eRoF0zLweYHIQOR2fHTg",
-            "AIzaSyBS5VD54bOUJ5OuIQTWAQoOa-YyuzpDZxs",
-            "AIzaSyBz7Q7WoeyFl3xAB6GofYpyED3RxyqNwHY",
-            "AIzaSyBloDPc9ey65wMWIJ6pV2PbohphBSUcGGw"]
-
-    for key in keys:
-        url = ("https://maps.googleapis.com/maps/api/distancematrix/json?"
-               "origins=+ON%s&destinations=%s+ON&language=ru-RU&key=%s"
-               "&departure_time=%s" % (
-                   "+".join(parser.begin).replace(",", "+ON|"),
-                   "+".join(parser.end).replace(",", "+ON|"),
-                   key,
-                   int((parser.departure_time - start_time).total_seconds())))
-        if parser.mode:
-            url += "&mode=%s" % parser.mode
-        time_accounting = "duration"
-        if parser.traffic_model:
-            url += "&traffic_model=%s" % parser.traffic_model
-            time_accounting = "duration_in_traffic"
-        req = requests.get(url, timeout=5)
-        answer = req.json()
-        if "error_message" in answer:
-            print(answer["error_message"], file=sys.stderr)
-            continue
-        if answer["status"] != "OK":
-            print(answer["status"], sys.stderr)
-            continue
-        for i in range(len(answer["origin_addresses"])):
-            for j in range(len(answer["destination_addresses"])):
-                print("—" * 50)
-                print("От: %s(%s)\nДо: %s(%s)\n" % (
-                    (" ".join(parser.begin).split(","))[i],
-                    answer["origin_addresses"][i],
-                    (" ".join(parser.end).split(","))[j],
-                    answer["destination_addresses"][j]))
-                if answer["rows"][i]["elements"][j]["status"] != "OK":
-                    print(answer["rows"][i]["elements"][j]["status"],
-                          file=sys.stderr)
-                    continue
-                print("Расстояние: %s\nВремя: %s\n" % (
-                    answer["rows"][i]["elements"][j]["distance"]["text"],
-                    answer["rows"][i]["elements"][j][time_accounting]["text"]))
-        print("—" * 50)
-        req.close()
-        sys.exit(0)
+    if not os.path.exists("keys"):
+        print("Нет файла с ключами 'keys'", file=sys.stderr)
+        sys.exit(1)
+    with open("keys") as keys:
+        for key in keys:
+            url = ("https://maps.googleapis.com/maps/api/distancematrix/json?"
+                   "origins=+ON%s&destinations=%s+ON&language=ru-RU&key=%s"
+                   "&departure_time=%s" % (
+                       "+".join(parser.begin).replace(",", "+ON|"),
+                       "+".join(parser.end).replace(",", "+ON|"),
+                       key.strip(),
+                       int((parser.departure_time -
+                            start_time).total_seconds())))
+            if parser.mode:
+                url += "&mode=%s" % parser.mode
+            time_accounting = "duration"
+            if parser.traffic_model:
+                url += "&traffic_model=%s" % parser.traffic_model
+                time_accounting = "duration_in_traffic"
+            req = requests.get(url, timeout=5)
+            answer = req.json()
+            if "error_message" in answer:
+                print(answer["error_message"], file=sys.stderr)
+                continue
+            if answer["status"] != "OK":
+                print(answer["status"], sys.stderr)
+                continue
+            for i in range(len(answer["origin_addresses"])):
+                for j in range(len(answer["destination_addresses"])):
+                    print("—" * 50)
+                    print("От: %s(%s)\nДо: %s(%s)\n" % (
+                        (" ".join(parser.begin).split(","))[i],
+                        answer["origin_addresses"][i],
+                        (" ".join(parser.end).split(","))[j],
+                        answer["destination_addresses"][j]))
+                    if answer["rows"][i]["elements"][j]["status"] != "OK":
+                        print(answer["rows"][i]["elements"][j]["status"],
+                              file=sys.stderr)
+                        continue
+                    print("Расстояние: %s\nВремя: %s\n" % (
+                        answer["rows"][i]["elements"][j]["distance"]["text"],
+                        answer["rows"][i]["elements"][j][
+                            time_accounting]["text"]))
+            print("—" * 50)
+            req.close()
+            sys.exit(0)
 
